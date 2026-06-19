@@ -1,35 +1,36 @@
 # Arena Rangers
 
-A browser shooting game with character classes, Google sign-in, local solo fallback, and optional Node/WebSocket multiplayer.
+A browser shooting game with character classes, guest callsigns, solo fallback, and optional Node/WebSocket multiplayer.
 
-## Files for GitHub
+## GitHub Pages Link
 
-The deployable web files are now in this folder root:
+Upload these files to your GitHub repository:
 
 - `index.html`
 - `styles.css`
 - `game.js`
 
-For GitHub Pages, publish this `outputs` folder or copy these three files to your repository root.
+Then enable GitHub Pages for the repo. Your friend can open the GitHub Pages link and play the game.
 
-GitHub Pages can host the game UI and solo mode. It cannot run the Node multiplayer server. For multiplayer, run `npm start` on a server that supports Node.js and WebSockets.
+Important: GitHub Pages is static hosting. It can show the game page, but it cannot run the multiplayer WebSocket server. Without a hosted Node server, the GitHub link runs in solo mode.
 
-## Google Login
+## Make Friends Play With You Online
 
-1. Create a Google OAuth Web client ID in Google Cloud Console.
-2. Add your site origins, for example:
-   - `http://localhost:3000`
-   - `https://YOUR_USERNAME.github.io`
-3. Open `game.js`.
-4. Replace:
+For real multiplayer, deploy the whole `outputs` folder to a Node host such as Render, Railway, Fly.io, or a VPS. The host must run:
 
-```js
-const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com";
+```powershell
+npm start
 ```
 
-with your real client ID.
+Then share that hosted app link with your friend. That is the easiest multiplayer link.
 
-The game uses Google Identity Services in popup mode. The browser receives a Google ID token and uses the profile name as the callsign. For a production account system, verify that token on your backend.
+If you still want GitHub Pages for the frontend and a separate backend server, open `game.js` and set:
+
+```js
+const MULTIPLAYER_SERVER_URL = "wss://YOUR-NODE-SERVER.example.com";
+```
+
+Use `wss://` for HTTPS sites.
 
 ## Local Multiplayer
 

@@ -4,14 +4,11 @@ const statusEl = document.querySelector("#status");
 const joinEl = document.querySelector("#join");
 const nameEl = document.querySelector("#name");
 const playEl = document.querySelector("#play");
-const guestLoginEl = document.querySelector("#guestLogin");
-const googleButtonEl = document.querySelector("#googleButton");
-const authStatusEl = document.querySelector("#authStatus");
 const leaderboardEl = document.querySelector("#leaderboard");
 const charactersEl = document.querySelector("#characters");
 const positionEl = document.querySelector("#position");
 
-const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com";
+const MULTIPLAYER_SERVER_URL = "";
 
 const characterMeta = {
   vanguard: { label: "Vanguard", color: "#40c0ff", armor: "#163a4e", visor: "#bdf4ff" },
@@ -29,16 +26,13 @@ let obstacles = [];
 let state = { players: [], bullets: [], leaderboard: [] };
 let mouse = { x: 0, y: 0, down: false };
 let camera = { x: 0, y: 0 };
-let authUser = null;
 let offlineMode = false;
 let offlinePlayer = null;
-let lastFrameAt = performance.now();
 const keys = new Set();
 const movementKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
 
 createCharacterButtons();
 connect();
-initGoogleLogin();
 resize();
 requestAnimationFrame(draw);
 setInterval(sendInput, 1000 / 30);
@@ -65,11 +59,6 @@ canvas.addEventListener("mousemove", event => {
 canvas.addEventListener("mousedown", () => { mouse.down = true; });
 window.addEventListener("mouseup", () => { mouse.down = false; });
 playEl.addEventListener("click", join);
-guestLoginEl.addEventListener("click", () => {
-  authUser = null;
-  authStatusEl.textContent = "Playing as guest.";
-  if (!nameEl.value.trim()) nameEl.value = "Ranger";
-});
 nameEl.addEventListener("keydown", event => {
   if (event.key === "Enter") join();
 });
@@ -79,8 +68,7 @@ function connect() {
     enableOfflineMode("Static file mode. Solo play is ready.");
     return;
   }
-  const protocol = location.protocol === "https:" ? "wss" : "ws";
-  socket = new WebSocket(`${protocol}://${location.host}`);
+  socket = new WebSocket(getSocketUrl());
   socket.addEventListener("open", () => {
     statusEl.textContent = "Connected. Pick your ranger.";
   });
@@ -175,7 +163,7 @@ function updateOfflineInput(input) {
 function startOfflineGame() {
   offlinePlayer = {
     id: "solo",
-    name: nameEl.value.trim() || authUser?.name || "Ranger",
+    name: nameEl.value.trim() || "Ranger",
     className: selectedClass,
     x: world.width / 2,
     y: world.height / 2,
@@ -198,56 +186,10 @@ function enableOfflineMode(message) {
   statusEl.textContent = message;
 }
 
-function initGoogleLogin() {
-  const hasClientId = GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith("PASTE_");
-  if (!hasClientId) {
-    googleButtonEl.classList.add("is-disabled");
-    return;
-  }
-  authStatusEl.textContent = "Google sign-in is ready.";
-  const render = () => {
-    if (!window.google?.accounts?.id) {
-      setTimeout(render, 150);
-      return;
-    }
-    window.google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredential
-    });
-    window.google.accounts.id.renderButton(googleButtonEl, {
-      theme: "outline",
-      size: "large",
-      type: "standard",
-      shape: "rectangular",
-      text: "signin_with"
-    });
-  };
-  render();
-}
-
-function handleGoogleCredential(response) {
-  const profile = decodeJwt(response.credential);
-  if (!profile) {
-    authStatusEl.textContent = "Google sign-in failed. Try guest mode.";
-    return;
-  }
-  authUser = {
-    id: profile.sub,
-    name: profile.name || profile.given_name || "Ranger",
-    email: profile.email || ""
-  };
-  nameEl.value = authUser.name.slice(0, 16);
-  authStatusEl.textContent = `Signed in as ${authUser.name}.`;
-}
-
-function decodeJwt(token) {
-  try {
-    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
-    const json = decodeURIComponent(atob(payload).split("").map(char => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`).join(""));
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
+function getSocketUrl() {
+  if (MULTIPLAYER_SERVER_URL) return MULTIPLAYER_SERVER_URL;
+  const protocol = location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${location.host}`;
 }
 
 function resize() {
