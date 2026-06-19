@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Arena Rangers</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="game-wrap" aria-label="Arena Rangers game">
+        <canvas id="game" width="1280" height="720" tabindex="0"></canvas>
+        <div class="hud top-left">
+          <strong>Arena Rangers</strong>
+          <span id="status">Connecting...</span>
+          <span id="position">Position: --</span>
+        </div>
+        <div class="hud top-right">
+          <strong>Leaderboard</strong>
+          <ol id="leaderboard"></ol>
+        </div>
+        <div class="hud bottom-left">
+          <span>Move: WASD / arrows</span>
+          <span>Aim: mouse</span>
+          <span>Shoot: click / space</span>
+        </div>
+        <div class="join" id="join">
+          <div class="join-panel">
+            <h1>Arena Rangers</h1>
+            <p>Choose a character and drop into a shared web arena.</p>
+            <label>
+              Callsign
+              <input id="name" maxlength="16" autocomplete="off" value="Ranger">
+            </label>
+            <div class="characters" id="characters"></div>
+            <button id="play">Enter Arena</button>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>

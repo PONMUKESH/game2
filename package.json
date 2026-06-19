@@ -1,0 +1,10 @@
+{
+  "name": "arena-rangers",
+  "version": "1.0.0",
+  "description": "A dependency-free browser multiplayer shooting game.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "private": true
+}
