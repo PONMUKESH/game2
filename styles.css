@@ -162,6 +162,39 @@ input:focus {
   border-color: var(--accent);
 }
 
+.login-row {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+#googleButton {
+  min-height: 44px;
+}
+
+#googleButton.is-disabled {
+  display: none;
+}
+
+.guest-button {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: #151b22;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.auth-status {
+  min-height: 18px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .characters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -221,6 +254,10 @@ input:focus {
 
   .characters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .login-row {
+    grid-template-columns: 1fr;
   }
 
   .join-panel {

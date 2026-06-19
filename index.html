@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Arena Rangers</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <main class="shell">
@@ -27,11 +28,16 @@
         <div class="join" id="join">
           <div class="join-panel">
             <h1>Arena Rangers</h1>
-            <p>Choose a character and drop into a shared web arena.</p>
+            <p>Sign in, choose a character, and drop into the arena.</p>
             <label>
               Callsign
               <input id="name" maxlength="16" autocomplete="off" value="Ranger">
             </label>
+            <div class="login-row">
+              <div id="googleButton"></div>
+              <button class="guest-button" id="guestLogin" type="button">Continue as guest</button>
+            </div>
+            <p class="auth-status" id="authStatus">Google sign-in needs your client ID in game.js.</p>
             <div class="characters" id="characters"></div>
             <button id="play">Enter Arena</button>
           </div>

@@ -4,7 +4,8 @@ const path = require("path");
 const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT || 3000);
-const PUBLIC_DIR = path.join(__dirname, "public");
+const PUBLIC_DIR = __dirname;
+const STATIC_FILES = new Set(["index.html", "styles.css", "game.js"]);
 const TICK_RATE = 1000 / 60;
 const WORLD = { width: 2200, height: 1400 };
 
@@ -42,11 +43,12 @@ let nextBulletId = 1;
 
 const server = http.createServer((req, res) => {
   const safePath = decodeURIComponent(req.url.split("?")[0]);
-  const filePath = path.normalize(path.join(PUBLIC_DIR, safePath === "/" ? "index.html" : safePath));
+  const fileName = safePath === "/" ? "index.html" : path.basename(safePath);
+  const filePath = path.normalize(path.join(PUBLIC_DIR, fileName));
 
-  if (!filePath.startsWith(PUBLIC_DIR)) {
-    res.writeHead(403);
-    res.end("Forbidden");
+  if (!STATIC_FILES.has(fileName) || !filePath.startsWith(PUBLIC_DIR)) {
+    res.writeHead(404);
+    res.end("Not found");
     return;
   }
 
