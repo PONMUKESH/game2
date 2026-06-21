@@ -32,6 +32,21 @@
               Callsign
               <input id="name" maxlength="16" autocomplete="off" value="Ranger">
             </label>
+            <label>
+              Mode
+              <select id="mode-select">
+                <option value="solo">Solo (bots)</option>
+                <option value="invite">Invite (share link)</option>
+              </select>
+            </label>
+            <div class="invite" id="invite-panel" style="display:none;">
+              <input id="invite-link" readonly>
+              <button id="copy-invite" type="button">Copy Invite Link</button>
+            </div>
+            <label>
+              Bots
+              <input id="bot-count" type="number" min="0" max="8" value="3">
+            </label>
             <div class="characters" id="characters"></div>
             <button id="play">Enter Arena</button>
           </div>

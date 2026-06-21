@@ -7,6 +7,11 @@ const playEl = document.querySelector("#play");
 const leaderboardEl = document.querySelector("#leaderboard");
 const charactersEl = document.querySelector("#characters");
 const positionEl = document.querySelector("#position");
+const modeSelect = document.querySelector("#mode-select");
+const invitePanel = document.querySelector("#invite-panel");
+const inviteLinkEl = document.querySelector("#invite-link");
+const copyInviteBtn = document.querySelector("#copy-invite");
+const botCountEl = document.querySelector("#bot-count");
 
 const MULTIPLAYER_SERVER_URL = "";
 
@@ -22,12 +27,32 @@ let myId = "";
 let joined = false;
 let selectedClass = "vanguard";
 let world = { width: 2200, height: 1400 };
+const defaultObstacles = [
+  { x: 420, y: 260, w: 220, h: 120 },
+  { x: 910, y: 200, w: 140, h: 360 },
+  { x: 1330, y: 310, w: 300, h: 120 },
+  { x: 1740, y: 210, w: 120, h: 260 },
+  { x: 210, y: 760, w: 320, h: 110 },
+  { x: 760, y: 820, w: 170, h: 320 },
+  { x: 1220, y: 760, w: 240, h: 150 },
+  { x: 1660, y: 870, w: 280, h: 120 },
+  { x: 620, y: 1180, w: 280, h: 80 },
+  { x: 1280, y: 1120, w: 420, h: 90 }
+];
 let obstacles = [];
 let state = { players: [], bullets: [], leaderboard: [] };
 let mouse = { x: 0, y: 0, down: false };
 let camera = { x: 0, y: 0 };
 let offlineMode = false;
 let offlinePlayer = null;
+const TICK_RATE = 1000 / 60;
+const classes = {
+  vanguard: { hp: 120, speed: 4.2, cooldown: 240, damage: 18, bulletSpeed: 13, color: "#40c0ff" },
+  striker: { hp: 90, speed: 5.2, cooldown: 150, damage: 12, bulletSpeed: 15, color: "#f8d34f" },
+  medic: { hp: 100, speed: 4.7, cooldown: 210, damage: 14, bulletSpeed: 12, color: "#54df9f" },
+  phantom: { hp: 82, speed: 5.7, cooldown: 190, damage: 15, bulletSpeed: 16, color: "#d48cff" }
+};
+let nextBulletId = 1;
 const keys = new Set();
 const movementKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
 
@@ -36,6 +61,7 @@ connect();
 resize();
 requestAnimationFrame(draw);
 setInterval(sendInput, 1000 / 30);
+setInterval(offlineTick, TICK_RATE);
 
 window.addEventListener("resize", resize);
 window.addEventListener("keydown", event => {
@@ -103,6 +129,30 @@ function connect() {
   });
 }
 
+// Mode / invite UI
+if (modeSelect) {
+  modeSelect.addEventListener("change", () => {
+    const v = modeSelect.value;
+    invitePanel.style.display = v === "invite" ? "block" : "none";
+  });
+}
+if (copyInviteBtn) copyInviteBtn.addEventListener("click", () => {
+  const url = new URL(location.href);
+  if (!url.searchParams.get("room")) url.searchParams.set("room", Math.random().toString(36).slice(2, 9));
+  navigator.clipboard.writeText(url.toString()).then(() => {
+    copyInviteBtn.textContent = "Copied!";
+    setTimeout(() => copyInviteBtn.textContent = "Copy Invite Link", 1500);
+  });
+});
+
+// If URL has room param, show invite mode and populate link
+const urlParams = new URLSearchParams(location.search);
+if (urlParams.get("room")) {
+  if (modeSelect) modeSelect.value = "invite";
+  if (invitePanel) invitePanel.style.display = "block";
+  if (inviteLinkEl) inviteLinkEl.value = location.href;
+}
+
 function join() {
   if (!offlineMode && (!socket || socket.readyState !== WebSocket.OPEN)) {
     enableOfflineMode("No multiplayer server found. Solo play is ready.");
@@ -155,7 +205,7 @@ function updateOfflineInput(input) {
   offlinePlayer.x = clamp(offlinePlayer.x + (mx / mag) * cls.speed, 24, world.width - 24);
   offlinePlayer.y = clamp(offlinePlayer.y + (my / mag) * cls.speed, 24, world.height - 24);
   offlinePlayer.angle = input.angle;
-  state.players = [offlinePlayer];
+  // offlineTick will assemble players array (player + bots)
   statusEl.textContent = `${offlinePlayer.name} | Solo Mode | Score ${offlinePlayer.score}`;
   positionEl.textContent = `Position: ${Math.round(offlinePlayer.x)}, ${Math.round(offlinePlayer.y)}`;
 }
@@ -177,8 +227,150 @@ function startOfflineGame() {
     muzzle: 0
   };
   myId = "solo";
-  state = { players: [offlinePlayer], bullets: [], leaderboard: [] };
+  // ensure obstacles present
+  if (obstacles.length === 0) obstacles = defaultObstacles.slice();
+  state = { players: [], bullets: [], leaderboard: [] };
+  // spawn bots
+  const botCount = Math.max(0, Math.min(8, parseInt(botCountEl?.value || '3', 10) || 3));
+  for (let i = 0; i < botCount; i++) {
+    const id = `bot-${i + 1}`;
+    const spawn = findSpawn();
+    const cls = Object.keys(classes)[i % Object.keys(classes).length];
+    state.players.push({
+      id,
+      name: `Ranger-${i+1}`,
+      className: cls,
+      x: spawn.x,
+      y: spawn.y,
+      vx: 0,
+      vy: 0,
+      angle: 0,
+      hp: classes[cls].hp,
+      maxHp: classes[cls].hp,
+      score: 0,
+      eliminations: 0,
+      defeated: 0,
+      lastShot: 0,
+      respawnAt: 0,
+      muzzle: 0
+    });
+  }
+  // add player last so myId is set correctly
+  state.players.push(offlinePlayer);
+  state.bullets = [];
   statusEl.textContent = `${offlinePlayer.name} | Solo Mode | Score 0`;
+}
+
+function offlineTick() {
+  if (!offlineMode) return;
+  const now = Date.now();
+
+  // Ensure offlinePlayer present
+  if (!offlinePlayer) return;
+
+  // Update players: respawn, movement, shooting (bots)
+  for (const player of state.players) {
+    const cls = classes[player.className] || { speed: 4, cooldown: 200, damage: 10, bulletSpeed: 12 };
+    if (player.respawnAt && now >= player.respawnAt) {
+      const spawn = findSpawn();
+      Object.assign(player, { x: spawn.x, y: spawn.y, hp: player.maxHp, respawnAt: 0 });
+    }
+    if (player.respawnAt) continue;
+
+    if (player.id === offlinePlayer.id) {
+      // offlinePlayer velocity already set by updateOfflineInput; nothing here
+    } else {
+      // simple bot AI: move towards player and shoot
+      const target = offlinePlayer;
+      const dx = target.x - player.x;
+      const dy = target.y - player.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const mx = dx / dist;
+      const my = dy / dist;
+      player.vx = mx * cls.speed * (Math.random() * 0.6 + 0.7);
+      player.vy = my * cls.speed * (Math.random() * 0.6 + 0.7);
+      player.angle = Math.atan2(dy, dx);
+
+      // shoot if roughly facing and cooldown passed
+      if (now - (player.lastShot || 0) > cls.cooldown && dist < 700) {
+        player.lastShot = now;
+        player.muzzle = 5;
+        const bx = player.x + Math.cos(player.angle) * 34;
+        const by = player.y + Math.sin(player.angle) * 34;
+        state.bullets.push({
+          id: nextBulletId++,
+          owner: player.id,
+          x: bx,
+          y: by,
+          vx: Math.cos(player.angle) * cls.bulletSpeed,
+          vy: Math.sin(player.angle) * cls.bulletSpeed,
+          damage: cls.damage,
+          ttl: 70,
+          color: classes[player.className].color
+        });
+      }
+    }
+
+    movePlayer(player, player.vx || 0, player.vy || 0);
+    player.muzzle = Math.max(0, (player.muzzle || 0) - 1);
+  }
+
+  // Offline player shooting
+  const me = offlinePlayer;
+  const myCls = classes[me.className] || { cooldown: 200 };
+  if (me && me.respawnAt == 0 && (me.shoot || mouse.down || keys.has(" ") || keys.has("Space"))) {
+    if (!me.lastShot) me.lastShot = 0;
+    if (now - me.lastShot > myCls.cooldown) {
+      me.lastShot = now;
+      me.muzzle = 5;
+      const bx = me.x + Math.cos(me.angle) * 34;
+      const by = me.y + Math.sin(me.angle) * 34;
+      state.bullets.push({
+        id: nextBulletId++,
+        owner: me.id,
+        x: bx,
+        y: by,
+        vx: Math.cos(me.angle) * myCls.bulletSpeed,
+        vy: Math.sin(me.angle) * myCls.bulletSpeed,
+        damage: myCls.damage,
+        ttl: 70,
+        color: classes[me.className].color
+      });
+    }
+  }
+
+  // Move bullets and resolve collisions
+  for (let i = state.bullets.length - 1; i >= 0; i--) {
+    const bullet = state.bullets[i];
+    bullet.x += bullet.vx;
+    bullet.y += bullet.vy;
+    bullet.ttl -= 1;
+    if (bullet.ttl <= 0 || bullet.x < 0 || bullet.y < 0 || bullet.x > world.width || bullet.y > world.height || intersectsObstacle(bullet.x, bullet.y, 5)) {
+      state.bullets.splice(i, 1);
+      continue;
+    }
+    for (const player of state.players) {
+      if (player.id === bullet.owner || player.respawnAt) continue;
+      if (Math.hypot(player.x - bullet.x, player.y - bullet.y) < 25) {
+        player.hp -= bullet.damage;
+        state.bullets.splice(i, 1);
+        if (player.hp <= 0) {
+          const killer = state.players.find(p => p.id === bullet.owner);
+          if (killer) {
+            killer.score += 100;
+            killer.eliminations += 1;
+          }
+          player.defeated += 1;
+          player.hp = 0;
+          player.respawnAt = now + 2200;
+        }
+        break;
+      }
+    }
+  }
+
+  // rebuild leaderboard and update global state
+  state.leaderboard = state.players.slice().sort((a, b) => b.score - a.score || b.eliminations - a.eliminations).slice(0, 6).map(p => ({ id: p.id, name: p.name, score: p.score, eliminations: p.eliminations, defeated: p.defeated }));
 }
 
 function enableOfflineMode(message) {
@@ -406,6 +598,32 @@ function circle(x, y, r) {
 function ellipse(x, y, rx, ry) {
   ctx.beginPath();
   ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+}
+
+function movePlayer(player, vx, vy) {
+  const nextX = clamp(player.x + vx, 24, world.width - 24);
+  if (!collidesPlayer(nextX, player.y)) player.x = nextX;
+  const nextY = clamp(player.y + vy, 24, world.height - 24);
+  if (!collidesPlayer(player.x, nextY)) player.y = nextY;
+}
+
+function collidesPlayer(x, y) {
+  return obstacles.some(o => x + 22 > o.x && x - 22 < o.x + o.w && y + 22 > o.y && y - 22 < o.y + o.h);
+}
+
+function intersectsObstacle(x, y, r) {
+  return obstacles.some(o => x + r > o.x && x - r < o.x + o.w && y + r > o.y && y - r < o.y + o.h);
+}
+
+function findSpawn() {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const point = {
+      x: 90 + Math.random() * (world.width - 180),
+      y: 90 + Math.random() * (world.height - 180)
+    };
+    if (!collidesPlayer(point.x, point.y)) return point;
+  }
+  return { x: 120, y: 120 };
 }
 
 function clamp(value, min, max) {
