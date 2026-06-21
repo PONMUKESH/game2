@@ -205,13 +205,14 @@ function currentInput(angle) {
 
 function updateOfflineInput(input) {
   if (!offlinePlayer || offlinePlayer.respawnAt) return;
-  const cls = { speed: 5 };
+  const cls = classes[offlinePlayer.className] || { speed: 5 };
   let mx = Number(input.right) - Number(input.left);
   let my = Number(input.down) - Number(input.up);
   const mag = Math.hypot(mx, my) || 1;
-  offlinePlayer.x = clamp(offlinePlayer.x + (mx / mag) * cls.speed, 24, world.width - 24);
-  offlinePlayer.y = clamp(offlinePlayer.y + (my / mag) * cls.speed, 24, world.height - 24);
+  const vx = (mx / mag) * cls.speed;
+  const vy = (my / mag) * cls.speed;
   offlinePlayer.angle = input.angle;
+  movePlayer(offlinePlayer, vx, vy);
   // offlineTick will assemble players array (player + bots)
   statusEl.textContent = `${offlinePlayer.name} | Solo Mode | Score ${offlinePlayer.score}`;
   positionEl.textContent = `Position: ${Math.round(offlinePlayer.x)}, ${Math.round(offlinePlayer.y)}`;
@@ -631,13 +632,23 @@ function ellipse(x, y, rx, ry) {
 
 function movePlayer(player, vx, vy) {
   const nextX = clamp(player.x + vx, 24, world.width - 24);
-  if (!collidesPlayer(nextX, player.y)) player.x = nextX;
+  if (!collidesPlayer(nextX, player.y) && !collidesWithOtherPlayer(nextX, player.y, player.id)) player.x = nextX;
   const nextY = clamp(player.y + vy, 24, world.height - 24);
-  if (!collidesPlayer(player.x, nextY)) player.y = nextY;
+  if (!collidesPlayer(player.x, nextY) && !collidesWithOtherPlayer(player.x, nextY, player.id)) player.y = nextY;
 }
 
 function collidesPlayer(x, y) {
   return obstacles.some(o => x + 22 > o.x && x - 22 < o.x + o.w && y + 22 > o.y && y - 22 < o.y + o.h);
+}
+
+function collidesWithOtherPlayer(x, y, selfId) {
+  if (!state || !state.players) return false;
+  return state.players.some(p => {
+    if (!p || !p.id) return false;
+    if (selfId && p.id === selfId) return false;
+    if (p.respawnAt) return false;
+    return Math.hypot(p.x - x, p.y - y) < 44;
+  });
 }
 
 function intersectsObstacle(x, y, r) {
@@ -650,7 +661,7 @@ function findSpawn() {
       x: 90 + Math.random() * (world.width - 180),
       y: 90 + Math.random() * (world.height - 180)
     };
-    if (!collidesPlayer(point.x, point.y)) return point;
+    if (!collidesPlayer(point.x, point.y) && !collidesWithOtherPlayer(point.x, point.y, null)) return point;
   }
   return { x: 120, y: 120 };
 }
