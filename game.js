@@ -12,6 +12,7 @@ const invitePanel = document.querySelector("#invite-panel");
 const inviteLinkEl = document.querySelector("#invite-link");
 const copyInviteBtn = document.querySelector("#copy-invite");
 const botCountEl = document.querySelector("#bot-count");
+const difficultySelect = document.querySelector("#difficulty-select");
 
 const MULTIPLAYER_SERVER_URL = "";
 
@@ -53,6 +54,7 @@ const classes = {
   phantom: { hp: 82, speed: 5.7, cooldown: 190, damage: 15, bulletSpeed: 16, color: "#d48cff" }
 };
 let nextBulletId = 1;
+let offlineDifficulty = "normal";
 const keys = new Set();
 const movementKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
 
@@ -151,6 +153,11 @@ if (urlParams.get("room")) {
   if (modeSelect) modeSelect.value = "invite";
   if (invitePanel) invitePanel.style.display = "block";
   if (inviteLinkEl) inviteLinkEl.value = location.href;
+}
+// difficulty UI
+if (difficultySelect) {
+  difficultySelect.addEventListener("change", () => { offlineDifficulty = difficultySelect.value; });
+  offlineDifficulty = difficultySelect.value || offlineDifficulty;
 }
 
 function join() {
@@ -280,34 +287,56 @@ function offlineTick() {
     if (player.id === offlinePlayer.id) {
       // offlinePlayer velocity already set by updateOfflineInput; nothing here
     } else {
-      // simple bot AI: move towards player and shoot
+      // bot difficulty parameters
+      const diff = offlineDifficulty || "normal";
+      const difficultyParams = {
+        easy: { speedMul: 0.8, accuracy: 0.6, cooldownMul: 1.4, aggressiveness: 0.7 },
+        normal: { speedMul: 1.0, accuracy: 0.8, cooldownMul: 1.0, aggressiveness: 0.9 },
+        hard: { speedMul: 1.2, accuracy: 0.92, cooldownMul: 0.85, aggressiveness: 1.05 },
+        veryhard: { speedMul: 1.4, accuracy: 0.98, cooldownMul: 0.7, aggressiveness: 1.2 }
+      };
+      const params = difficultyParams[diff] || difficultyParams.normal;
+
+      // simple bot AI: move towards player and shoot with noise based on accuracy
       const target = offlinePlayer;
       const dx = target.x - player.x;
       const dy = target.y - player.y;
       const dist = Math.hypot(dx, dy) || 1;
       const mx = dx / dist;
       const my = dy / dist;
-      player.vx = mx * cls.speed * (Math.random() * 0.6 + 0.7);
-      player.vy = my * cls.speed * (Math.random() * 0.6 + 0.7);
-      player.angle = Math.atan2(dy, dx);
+      const speed = (cls.speed || 4) * params.speedMul;
+      player.vx = mx * speed * (Math.random() * 0.5 + params.aggressiveness * 0.6);
+      player.vy = my * speed * (Math.random() * 0.5 + params.aggressiveness * 0.6);
 
-      // shoot if roughly facing and cooldown passed
-      if (now - (player.lastShot || 0) > cls.cooldown && dist < 700) {
-        player.lastShot = now;
-        player.muzzle = 5;
-        const bx = player.x + Math.cos(player.angle) * 34;
-        const by = player.y + Math.sin(player.angle) * 34;
-        state.bullets.push({
-          id: nextBulletId++,
-          owner: player.id,
-          x: bx,
-          y: by,
-          vx: Math.cos(player.angle) * cls.bulletSpeed,
-          vy: Math.sin(player.angle) * cls.bulletSpeed,
-          damage: cls.damage,
-          ttl: 70,
-          color: classes[player.className].color
-        });
+      // aim with jitter inversely proportional to accuracy
+      const aimJitter = (1 - params.accuracy) * (Math.random() - 0.5) * Math.min(0.6, dist / 600);
+      player.angle = Math.atan2(dy, dx) + aimJitter;
+
+      // shoot if cooldown passed and within range scaled by aggressiveness
+      const shootRange = 700 * (0.8 + params.aggressiveness * 0.6);
+      const botCooldown = (cls.cooldown || 200) * params.cooldownMul;
+      if (now - (player.lastShot || 0) > botCooldown && dist < shootRange) {
+        // accuracy check: sometimes bots miss entirely (don't shoot) based on accuracy
+        if (Math.random() < params.accuracy + 0.05) {
+          player.lastShot = now;
+          player.muzzle = 5;
+          const bx = player.x + Math.cos(player.angle) * 34;
+          const by = player.y + Math.sin(player.angle) * 34;
+          state.bullets.push({
+            id: nextBulletId++,
+            owner: player.id,
+            x: bx,
+            y: by,
+            vx: Math.cos(player.angle) * cls.bulletSpeed,
+            vy: Math.sin(player.angle) * cls.bulletSpeed,
+            damage: cls.damage,
+            ttl: 70,
+            color: classes[player.className].color
+          });
+        } else {
+          // simulate missed shot by delaying lastShot slightly
+          player.lastShot = now - (botCooldown * 0.5);
+        }
       }
     }
 
