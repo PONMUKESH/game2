@@ -78,6 +78,7 @@ canvas {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 16px 36px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(14px);
   pointer-events: auto;
+  will-change: contents;
 }
 
 .joystick-knob {
@@ -90,7 +91,8 @@ canvas {
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, #fff7c8, #ffcf5a 65%, #d48f00);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
-  transition: transform 60ms ease-out;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .trigger-btn {
@@ -108,10 +110,13 @@ canvas {
   text-transform: uppercase;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
   pointer-events: auto;
+  will-change: transform;
+  transform: translateZ(0) scale(1);
+  transition: box-shadow 40ms ease-out, transform 40ms ease-out;
 }
 
 .trigger-btn.is-pressed {
-  transform: scale(0.96);
+  transform: translateZ(0) scale(0.94);
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.28), 0 8px 18px rgba(0, 0, 0, 0.26);
 }
 

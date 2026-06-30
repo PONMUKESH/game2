@@ -104,19 +104,22 @@ function setupTouchControls() {
   }
   touchControlsEl.classList.add("is-active");
 
-  moveJoystickEl.addEventListener("pointerdown", handleJoystickPointerDown);
-  window.addEventListener("pointermove", handleJoystickPointerMove);
-  window.addEventListener("pointerup", handleJoystickPointerUp);
-  window.addEventListener("pointercancel", handleJoystickPointerUp);
+  moveJoystickEl.addEventListener("pointerdown", handleJoystickPointerDown, { passive: false });
+  window.addEventListener("pointermove", handleJoystickPointerMove, { passive: false });
+  window.addEventListener("pointerup", handleJoystickPointerUp, { passive: false });
+  window.addEventListener("pointercancel", handleJoystickPointerUp, { passive: false });
 
-  shootTriggerEl.addEventListener("pointerdown", event => {
+  const handleShootStart = event => {
     event.preventDefault();
     touchInput.shoot = true;
     shootTriggerEl.classList.add("is-pressed");
-  });
-  shootTriggerEl.addEventListener("pointerup", releaseShootTrigger);
-  shootTriggerEl.addEventListener("pointerleave", releaseShootTrigger);
-  shootTriggerEl.addEventListener("pointercancel", releaseShootTrigger);
+  };
+  const handleShootEnd = () => releaseShootTrigger();
+
+  shootTriggerEl.addEventListener("pointerdown", handleShootStart, { passive: false });
+  shootTriggerEl.addEventListener("pointerup", handleShootEnd);
+  shootTriggerEl.addEventListener("pointerleave", handleShootEnd);
+  shootTriggerEl.addEventListener("pointercancel", handleShootEnd);
 
   canvas.addEventListener("touchstart", handleTouchAim, { passive: false });
   canvas.addEventListener("touchmove", handleTouchAim, { passive: false });
@@ -125,6 +128,7 @@ function setupTouchControls() {
 
 function handleJoystickPointerDown(event) {
   if (event.pointerType === "mouse" && event.button !== 0) return;
+  if (touchJoystick.active) return;
   event.preventDefault();
   touchJoystick.active = true;
   touchJoystick.pointerId = event.pointerId;
@@ -134,15 +138,17 @@ function handleJoystickPointerDown(event) {
 
 function handleJoystickPointerMove(event) {
   if (!touchJoystick.active || event.pointerId !== touchJoystick.pointerId) return;
+  event.preventDefault();
   updateJoystickFromPoint(event.clientX, event.clientY);
 }
 
 function handleJoystickPointerUp(event) {
   if (!touchJoystick.active || event.pointerId !== touchJoystick.pointerId) return;
+  event.preventDefault();
   touchJoystick.active = false;
   touchJoystick.pointerId = null;
   moveJoystickEl.releasePointerCapture?.(event.pointerId);
-  moveKnobEl.style.transform = "translate(0px, 0px)";
+  moveKnobEl.style.transform = "translate(0, 0)";
   touchInput.up = false;
   touchInput.down = false;
   touchInput.left = false;
@@ -155,20 +161,22 @@ function updateJoystickFromPoint(clientX, clientY) {
   const centerY = rect.top + rect.height / 2;
   const dx = clientX - centerX;
   const dy = clientY - centerY;
-  const distance = Math.min(rect.width * 0.28, Math.hypot(dx, dy));
+  const maxDist = rect.width * 0.28;
   const magnitude = Math.hypot(dx, dy) || 1;
-  const clampedX = (dx / magnitude) * distance;
-  const clampedY = (dy / magnitude) * distance;
+  const scale = Math.min(1, magnitude / maxDist);
+  const clampedX = (dx / magnitude) * maxDist * scale;
+  const clampedY = (dy / magnitude) * maxDist * scale;
   moveKnobEl.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
-  const nx = clamp(clampedX / (rect.width * 0.28), -1, 1);
-  const ny = clamp(clampedY / (rect.width * 0.28), -1, 1);
+  const nx = clamp(clampedX / maxDist, -1, 1);
+  const ny = clamp(clampedY / maxDist, -1, 1);
   touchInput.left = nx < -0.15;
   touchInput.right = nx > 0.15;
   touchInput.up = ny < -0.15;
   touchInput.down = ny > 0.15;
 }
 
-function releaseShootTrigger() {
+function releaseShootTrigger(event) {
+  if (event) event.preventDefault?.();
   touchInput.shoot = false;
   shootTriggerEl.classList.remove("is-pressed");
 }
