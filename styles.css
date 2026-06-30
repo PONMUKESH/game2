@@ -51,6 +51,68 @@ canvas {
   height: 100%;
   cursor: crosshair;
   background: #20262d;
+  touch-action: none;
+}
+
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: none;
+  pointer-events: none;
+}
+
+.touch-controls.is-active {
+  display: block;
+}
+
+.joystick-shell {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(10, 14, 18, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 16px 36px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+
+.joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fff7c8, #ffcf5a 65%, #d48f00);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+  transition: transform 60ms ease-out;
+}
+
+.trigger-btn {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  min-width: 112px;
+  min-height: 112px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(255, 79, 79, 0.9), rgba(180, 26, 26, 0.95));
+  color: white;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+  pointer-events: auto;
+}
+
+.trigger-btn.is-pressed {
+  transform: scale(0.96);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.28), 0 8px 18px rgba(0, 0, 0, 0.26);
 }
 
 .hud {
@@ -212,6 +274,10 @@ input:focus {
 @media (max-width: 720px) {
   .top-right {
     display: none;
+  }
+
+  .touch-controls {
+    display: block;
   }
 
   .bottom-left {

@@ -10,6 +10,12 @@
     <main class="shell">
       <section class="game-wrap" aria-label="Arena Rangers game">
         <canvas id="game" width="1280" height="720" tabindex="0"></canvas>
+        <div class="touch-controls" id="touch-controls" aria-label="Touch controls">
+          <div class="joystick-shell" id="move-joystick">
+            <div class="joystick-knob" id="move-knob"></div>
+          </div>
+          <button class="trigger-btn" id="shoot-trigger" type="button">Fire</button>
+        </div>
         <div class="hud top-left">
           <strong>Arena Rangers</strong>
           <span id="status">Connecting...</span>

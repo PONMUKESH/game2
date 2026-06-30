@@ -273,9 +273,18 @@ function tick() {
 
 function movePlayer(player, vx, vy) {
   const nextX = clamp(player.x + vx, 24, WORLD.width - 24);
-  if (!collidesPlayer(nextX, player.y)) player.x = nextX;
+  if (canOccupyPosition(nextX, player.y, player.id)) player.x = nextX;
   const nextY = clamp(player.y + vy, 24, WORLD.height - 24);
-  if (!collidesPlayer(player.x, nextY)) player.y = nextY;
+  if (canOccupyPosition(player.x, nextY, player.id)) player.y = nextY;
+}
+
+function canOccupyPosition(x, y, selfId) {
+  if (collidesPlayer(x, y)) return false;
+  for (const other of players.values()) {
+    if (!other || other.id === selfId || other.respawnAt) continue;
+    if (Math.hypot(other.x - x, other.y - y) < 44) return false;
+  }
+  return true;
 }
 
 function collidesPlayer(x, y) {
@@ -292,7 +301,7 @@ function findSpawn() {
       x: 90 + Math.random() * (WORLD.width - 180),
       y: 90 + Math.random() * (WORLD.height - 180)
     };
-    if (!collidesPlayer(point.x, point.y)) return point;
+    if (canOccupyPosition(point.x, point.y, null)) return point;
   }
   return { x: 120, y: 120 };
 }

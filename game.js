@@ -13,6 +13,10 @@ const inviteLinkEl = document.querySelector("#invite-link");
 const copyInviteBtn = document.querySelector("#copy-invite");
 const botCountEl = document.querySelector("#bot-count");
 const difficultySelect = document.querySelector("#difficulty-select");
+const touchControlsEl = document.querySelector("#touch-controls");
+const moveJoystickEl = document.querySelector("#move-joystick");
+const moveKnobEl = document.querySelector("#move-knob");
+const shootTriggerEl = document.querySelector("#shoot-trigger");
 
 const MULTIPLAYER_SERVER_URL = "";
 
@@ -43,6 +47,8 @@ const defaultObstacles = [
 let obstacles = [];
 let state = { players: [], bullets: [], leaderboard: [] };
 let mouse = { x: 0, y: 0, down: false };
+let touchInput = { up: false, down: false, left: false, right: false, shoot: false };
+let touchJoystick = { active: false, pointerId: null };
 let camera = { x: 0, y: 0 };
 let offlineMode = false;
 let offlinePlayer = null;
@@ -59,6 +65,7 @@ const keys = new Set();
 const movementKeys = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"]);
 
 createCharacterButtons();
+setupTouchControls();
 connect();
 resize();
 requestAnimationFrame(draw);
@@ -87,6 +94,92 @@ canvas.addEventListener("mousemove", event => {
 canvas.addEventListener("mousedown", () => { mouse.down = true; });
 window.addEventListener("mouseup", () => { mouse.down = false; });
 playEl.addEventListener("click", join);
+
+function setupTouchControls() {
+  if (!touchControlsEl || !moveJoystickEl || !moveKnobEl || !shootTriggerEl) return;
+  const isTouchDevice = window.matchMedia("(hover: none) and (pointer: coarse)").matches || "ontouchstart" in window;
+  if (!isTouchDevice) {
+    touchControlsEl.classList.remove("is-active");
+    return;
+  }
+  touchControlsEl.classList.add("is-active");
+
+  moveJoystickEl.addEventListener("pointerdown", handleJoystickPointerDown);
+  window.addEventListener("pointermove", handleJoystickPointerMove);
+  window.addEventListener("pointerup", handleJoystickPointerUp);
+  window.addEventListener("pointercancel", handleJoystickPointerUp);
+
+  shootTriggerEl.addEventListener("pointerdown", event => {
+    event.preventDefault();
+    touchInput.shoot = true;
+    shootTriggerEl.classList.add("is-pressed");
+  });
+  shootTriggerEl.addEventListener("pointerup", releaseShootTrigger);
+  shootTriggerEl.addEventListener("pointerleave", releaseShootTrigger);
+  shootTriggerEl.addEventListener("pointercancel", releaseShootTrigger);
+
+  canvas.addEventListener("touchstart", handleTouchAim, { passive: false });
+  canvas.addEventListener("touchmove", handleTouchAim, { passive: false });
+  canvas.addEventListener("touchend", handleTouchAim, { passive: false });
+}
+
+function handleJoystickPointerDown(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  event.preventDefault();
+  touchJoystick.active = true;
+  touchJoystick.pointerId = event.pointerId;
+  moveJoystickEl.setPointerCapture?.(event.pointerId);
+  updateJoystickFromPoint(event.clientX, event.clientY);
+}
+
+function handleJoystickPointerMove(event) {
+  if (!touchJoystick.active || event.pointerId !== touchJoystick.pointerId) return;
+  updateJoystickFromPoint(event.clientX, event.clientY);
+}
+
+function handleJoystickPointerUp(event) {
+  if (!touchJoystick.active || event.pointerId !== touchJoystick.pointerId) return;
+  touchJoystick.active = false;
+  touchJoystick.pointerId = null;
+  moveJoystickEl.releasePointerCapture?.(event.pointerId);
+  moveKnobEl.style.transform = "translate(0px, 0px)";
+  touchInput.up = false;
+  touchInput.down = false;
+  touchInput.left = false;
+  touchInput.right = false;
+}
+
+function updateJoystickFromPoint(clientX, clientY) {
+  const rect = moveJoystickEl.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  const dx = clientX - centerX;
+  const dy = clientY - centerY;
+  const distance = Math.min(rect.width * 0.28, Math.hypot(dx, dy));
+  const magnitude = Math.hypot(dx, dy) || 1;
+  const clampedX = (dx / magnitude) * distance;
+  const clampedY = (dy / magnitude) * distance;
+  moveKnobEl.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
+  const nx = clamp(clampedX / (rect.width * 0.28), -1, 1);
+  const ny = clamp(clampedY / (rect.width * 0.28), -1, 1);
+  touchInput.left = nx < -0.15;
+  touchInput.right = nx > 0.15;
+  touchInput.up = ny < -0.15;
+  touchInput.down = ny > 0.15;
+}
+
+function releaseShootTrigger() {
+  touchInput.shoot = false;
+  shootTriggerEl.classList.remove("is-pressed");
+}
+
+function handleTouchAim(event) {
+  if (!event.touches || !event.touches.length) return;
+  const touch = event.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = (touch.clientX - rect.left) * (canvas.width / rect.width);
+  mouse.y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+}
 nameEl.addEventListener("keydown", event => {
   if (event.key === "Enter") join();
 });
@@ -194,11 +287,11 @@ function sendInput() {
 function currentInput(angle) {
   return {
     type: "input",
-    up: keys.has("w") || keys.has("arrowup") || keys.has("KeyW") || keys.has("ArrowUp"),
-    down: keys.has("s") || keys.has("arrowdown") || keys.has("KeyS") || keys.has("ArrowDown"),
-    left: keys.has("a") || keys.has("arrowleft") || keys.has("KeyA") || keys.has("ArrowLeft"),
-    right: keys.has("d") || keys.has("arrowright") || keys.has("KeyD") || keys.has("ArrowRight"),
-    shoot: mouse.down || keys.has(" ") || keys.has("Space"),
+    up: keys.has("w") || keys.has("arrowup") || keys.has("KeyW") || keys.has("ArrowUp") || touchInput.up,
+    down: keys.has("s") || keys.has("arrowdown") || keys.has("KeyS") || keys.has("ArrowDown") || touchInput.down,
+    left: keys.has("a") || keys.has("arrowleft") || keys.has("KeyA") || keys.has("ArrowLeft") || touchInput.left,
+    right: keys.has("d") || keys.has("arrowright") || keys.has("KeyD") || keys.has("ArrowRight") || touchInput.right,
+    shoot: mouse.down || keys.has(" ") || keys.has("Space") || touchInput.shoot,
     angle
   };
 }
